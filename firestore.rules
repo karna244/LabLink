@@ -1,0 +1,312 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Helper Primitives ---
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isValidDateStr(d) {
+      return d is string && d.size() == 10 && d.matches('^\\d{4}-\\d{2}-\\d{2}$');
+    }
+
+    function isAdmin() {
+      return isVerifiedUser() && (
+        request.auth.token.email == 'johanlibert949@gmail.com' ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    // --- Validation Blueprints ---
+    function isValidEquipment(data) {
+      return data.keys().hasAll([
+        'id', 'name', 'department', 'category', 'location', 'description',
+        'specs', 'imageUrl', 'status', 'requiresApproval', 'utilizationRate',
+        'maxSlotHours', 'custodianName', 'isListed', 'createdAt', 'updatedAt'
+      ])
+      && data.keys().hasOnly([
+        'id', 'name', 'department', 'category', 'location', 'description',
+        'specs', 'imageUrl', 'status', 'requiresApproval', 'utilizationRate',
+        'maxSlotHours', 'custodianName', 'isListed', 'createdAt', 'updatedAt'
+      ])
+      && isValidId(data.id)
+      && data.name is string && data.name.size() >= 2 && data.name.size() <= 120
+      && data.department is string && data.department.size() >= 2 && data.department.size() <= 80
+      && data.category is string && data.category.size() >= 2 && data.category.size() <= 60
+      && data.location is string && data.location.size() >= 2 && data.location.size() <= 100
+      && data.description is string && data.description.size() >= 10 && data.description.size() <= 600
+      && data.specs is string && data.specs.size() >= 2 && data.specs.size() <= 300
+      && data.imageUrl is string && data.imageUrl.size() <= 300
+      && data.status in ['available', 'in_use', 'maintenance']
+      && data.requiresApproval is bool
+      && data.utilizationRate is number && data.utilizationRate >= 0 && data.utilizationRate <= 100
+      && data.maxSlotHours is int && data.maxSlotHours >= 1 && data.maxSlotHours <= 12
+      && data.custodianName is string && data.custodianName.size() >= 2 && data.custodianName.size() <= 80
+      && data.isListed is bool
+      && data.createdAt is timestamp
+      && data.updatedAt is timestamp;
+    }
+
+    function isValidBooking(data) {
+      return data.keys().hasAll([
+        'id', 'equipmentId', 'equipmentName', 'department', 'requesterUid',
+        'requesterName', 'projectTitle', 'purpose', 'date', 'startHour',
+        'endHour', 'priorityLevel', 'projectDeadline', 'status', 'visibility',
+        'createdAt', 'updatedAt'
+      ])
+      && data.keys().hasOnly([
+        'id', 'equipmentId', 'equipmentName', 'department', 'requesterUid',
+        'requesterName', 'projectTitle', 'purpose', 'date', 'startHour',
+        'endHour', 'priorityLevel', 'projectDeadline', 'status', 'aiRecommendationNote',
+        'reviewedBy', 'visibility', 'createdAt', 'updatedAt'
+      ])
+      && isValidId(data.id)
+      && isValidId(data.equipmentId)
+      && data.equipmentName is string && data.equipmentName.size() >= 2 && data.equipmentName.size() <= 120
+      && data.department is string && data.department.size() >= 2 && data.department.size() <= 80
+      && isValidId(data.requesterUid)
+      && data.requesterName is string && data.requesterName.size() >= 2 && data.requesterName.size() <= 80
+      && data.projectTitle is string && data.projectTitle.size() >= 2 && data.projectTitle.size() <= 140
+      && data.purpose is string && data.purpose.size() >= 4 && data.purpose.size() <= 500
+      && isValidDateStr(data.date)
+      && data.startHour is int && data.startHour >= 8 && data.startHour <= 20
+      && data.endHour is int && data.endHour >= 9 && data.endHour <= 21
+      && data.startHour < data.endHour
+      && data.priorityLevel in ['standard', 'capstone', 'thesis_deadline', 'funded_grant']
+      && isValidDateStr(data.projectDeadline)
+      && data.status in ['pending_approval', 'confirmed', 'conflict_flagged', 'rescheduled', 'rejected', 'cancelled']
+      && (!('aiRecommendationNote' in data) || (data.aiRecommendationNote is string && data.aiRecommendationNote.size() <= 500))
+      && (!('reviewedBy' in data) || (data.reviewedBy is string && data.reviewedBy.size() <= 80))
+      && data.visibility == 'campus'
+      && data.createdAt is timestamp
+      && data.updatedAt is timestamp;
+    }
+
+    function isValidProjectRequest(data) {
+      return data.keys().hasAll([
+        'id', 'title', 'department', 'courseOrGrant', 'abstract',
+        'requestedEquipmentIds', 'requestedEquipmentNames', 'requestedHoursPerWeek',
+        'deadline', 'requesterUid', 'requesterName', 'status', 'createdAt', 'updatedAt'
+      ])
+      && data.keys().hasOnly([
+        'id', 'title', 'department', 'courseOrGrant', 'abstract',
+        'requestedEquipmentIds', 'requestedEquipmentNames', 'requestedHoursPerWeek',
+        'deadline', 'requesterUid', 'requesterName', 'status',
+        'facultyDecisionNote', 'reviewedByUid', 'reviewedByName', 'createdAt', 'updatedAt'
+      ])
+      && isValidId(data.id)
+      && data.title is string && data.title.size() >= 3 && data.title.size() <= 140
+      && data.department is string && data.department.size() >= 2 && data.department.size() <= 80
+      && data.courseOrGrant is string && data.courseOrGrant.size() >= 2 && data.courseOrGrant.size() <= 100
+      && data.abstract is string && data.abstract.size() >= 10 && data.abstract.size() <= 800
+      && data.requestedEquipmentIds is list && data.requestedEquipmentIds.size() >= 1 && data.requestedEquipmentIds.size() <= 8
+      && data.requestedEquipmentIds[0] is string
+      && data.requestedEquipmentNames is list && data.requestedEquipmentNames.size() >= 1 && data.requestedEquipmentNames.size() <= 8
+      && data.requestedEquipmentNames[0] is string
+      && data.requestedHoursPerWeek is int && data.requestedHoursPerWeek >= 1 && data.requestedHoursPerWeek <= 40
+      && isValidDateStr(data.deadline)
+      && isValidId(data.requesterUid)
+      && data.requesterName is string && data.requesterName.size() >= 2 && data.requesterName.size() <= 80
+      && data.status in ['pending_faculty', 'approved', 'changes_requested', 'rejected']
+      && (!('facultyDecisionNote' in data) || (data.facultyDecisionNote is string && data.facultyDecisionNote.size() <= 500))
+      && (!('reviewedByUid' in data) || isValidId(data.reviewedByUid))
+      && (!('reviewedByName' in data) || (data.reviewedByName is string && data.reviewedByName.size() <= 80))
+      && data.createdAt is timestamp
+      && data.updatedAt is timestamp;
+    }
+
+    function isValidUserProfile(data) {
+      return data.keys().hasAll(['uid', 'displayName', 'email', 'department', 'role', 'createdAt', 'updatedAt'])
+      && data.keys().hasOnly(['uid', 'displayName', 'email', 'department', 'role', 'createdAt', 'updatedAt'])
+      && isValidId(data.uid)
+      && data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 80
+      && data.email is string && data.email.size() >= 3 && data.email.size() <= 120
+      && data.department is string && data.department.size() >= 2 && data.department.size() <= 80
+      && data.role in ['student', 'faculty']
+      && data.createdAt is timestamp
+      && data.updatedAt is timestamp;
+    }
+
+    function isValidAdminRecord(data) {
+      return data.keys().hasAll(['uid', 'grantedBy', 'createdAt'])
+      && data.keys().hasOnly(['uid', 'grantedBy', 'createdAt'])
+      && isValidId(data.uid)
+      && data.grantedBy is string && data.grantedBy.size() >= 1 && data.grantedBy.size() <= 128
+      && data.createdAt is timestamp;
+    }
+
+    // --- Collection Rules ---
+
+    // Equipment catalog: publicly viewable when listed; only faculty/admin can write
+    match /equipment/{equipmentId} {
+      allow get: if isValidId(equipmentId) && (existing().isListed == true || isAdmin());
+      allow list: if resource.data.isListed == true || isAdmin();
+      allow create: if isAdmin()
+        && isValidId(equipmentId)
+        && isValidEquipment(incoming())
+        && incoming().id == equipmentId
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isAdmin()
+        && isValidId(equipmentId)
+        && isValidEquipment(incoming())
+        && incoming().id == existing().id
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time;
+      allow delete: if isAdmin() && isValidId(equipmentId);
+    }
+
+    // Bookings: campus-visible non-PII slot reservations
+    match /bookings/{bookingId} {
+      allow get: if isSignedIn() && isValidId(bookingId) && (existing().visibility == 'campus' || existing().requesterUid == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && (resource.data.visibility == 'campus' || resource.data.requesterUid == request.auth.uid || isAdmin());
+      allow create: if isVerifiedUser()
+        && isValidId(bookingId)
+        && isValidBooking(incoming())
+        && incoming().id == bookingId
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && exists(/databases/$(database)/documents/equipment/$(incoming().equipmentId))
+        && (
+          isAdmin() || (
+            incoming().requesterUid == request.auth.uid
+            && (
+              (get(/databases/$(database)/documents/equipment/$(incoming().equipmentId)).data.requiresApproval == true && incoming().status == 'pending_approval') ||
+              (get(/databases/$(database)/documents/equipment/$(incoming().equipmentId)).data.requiresApproval == false && incoming().status in ['confirmed', 'pending_approval'])
+            )
+          )
+        );
+      allow update: if isVerifiedUser()
+        && isValidId(bookingId)
+        && isValidBooking(incoming())
+        && incoming().id == existing().id
+        && incoming().equipmentId == existing().equipmentId
+        && incoming().requesterUid == existing().requesterUid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin() || (
+            existing().requesterUid == request.auth.uid
+            && !(existing().status in ['rejected', 'cancelled'])
+            && (
+              // Action: Student cancels own booking
+              (incoming().status == 'cancelled' && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt'])) ||
+              // Action: Student applies an AI-recommended reschedule while awaiting approval
+              (existing().status in ['pending_approval', 'conflict_flagged']
+                && incoming().status in ['pending_approval', 'rescheduled']
+                && incoming().diff(existing()).affectedKeys().hasOnly(['date', 'startHour', 'endHour', 'status', 'aiRecommendationNote', 'updatedAt']))
+            )
+          )
+        );
+      allow delete: if isAdmin() && isValidId(bookingId);
+    }
+
+    // Project-based access requests
+    match /projectRequests/{requestId} {
+      allow get: if isSignedIn() && isValidId(requestId) && (existing().requesterUid == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && (resource.data.requesterUid == request.auth.uid || isAdmin());
+      allow create: if isVerifiedUser()
+        && isValidId(requestId)
+        && isValidProjectRequest(incoming())
+        && incoming().id == requestId
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin() || (
+            incoming().requesterUid == request.auth.uid
+            && incoming().status == 'pending_faculty'
+          )
+        );
+      allow update: if isVerifiedUser()
+        && isValidId(requestId)
+        && isValidProjectRequest(incoming())
+        && incoming().id == existing().id
+        && incoming().requesterUid == existing().requesterUid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin() || (
+            existing().requesterUid == request.auth.uid
+            && !(existing().status in ['approved', 'rejected'])
+            && incoming().status == 'pending_faculty'
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'title', 'courseOrGrant', 'abstract', 'requestedEquipmentIds',
+              'requestedEquipmentNames', 'requestedHoursPerWeek', 'deadline', 'status', 'updatedAt'
+            ])
+          )
+        );
+      allow delete: if isAdmin() && isValidId(requestId);
+    }
+
+    // Private User Profiles (PII Isolated)
+    match /users/{userId} {
+      allow get: if isSignedIn() && isValidId(userId) && (isOwner(userId) || isAdmin());
+      allow list: if isAdmin();
+      allow create: if isVerifiedUser()
+        && isValidId(userId)
+        && isValidUserProfile(incoming())
+        && incoming().uid == userId
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin() || (
+            isOwner(userId)
+            && incoming().role == 'student'
+          )
+        );
+      allow update: if isVerifiedUser()
+        && isValidId(userId)
+        && isValidUserProfile(incoming())
+        && incoming().uid == existing().uid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin() || (
+            isOwner(userId)
+            && incoming().role == existing().role
+            && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'department', 'updatedAt'])
+          )
+        );
+      allow delete: if isAdmin() && isValidId(userId);
+    }
+
+    // Admins allowlist
+    match /admins/{userId} {
+      allow get: if isSignedIn() && isValidId(userId) && (isOwner(userId) || isAdmin());
+      allow list: if isAdmin();
+      allow create: if isAdmin() && isValidId(userId) && isValidAdminRecord(incoming()) && incoming().uid == userId && incoming().createdAt == request.time;
+      allow update: if isAdmin() && isValidId(userId) && isValidAdminRecord(incoming()) && incoming().uid == existing().uid && incoming().createdAt == existing().createdAt;
+      allow delete: if isAdmin() && isValidId(userId);
+    }
+
+    // Startup connection test document
+    match /test/{docId} {
+      allow get: if docId == 'connection';
+    }
+  }
+}

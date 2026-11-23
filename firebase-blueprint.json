@@ -1,0 +1,141 @@
+{
+  "entities": {
+    "Equipment": {
+      "title": "Equipment",
+      "description": "Shared campus laboratory instrument, development kit, or compute workstation.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "name": { "type": "string", "minLength": 2, "maxLength": 120 },
+        "department": { "type": "string", "minLength": 2, "maxLength": 80 },
+        "category": { "type": "string", "minLength": 2, "maxLength": 60 },
+        "location": { "type": "string", "minLength": 2, "maxLength": 100 },
+        "description": { "type": "string", "minLength": 10, "maxLength": 600 },
+        "specs": { "type": "string", "minLength": 2, "maxLength": 300 },
+        "imageUrl": { "type": "string", "maxLength": 300 },
+        "status": { "type": "string", "enum": ["available", "in_use", "maintenance"] },
+        "requiresApproval": { "type": "boolean" },
+        "utilizationRate": { "type": "number" },
+        "maxSlotHours": { "type": "integer" },
+        "custodianName": { "type": "string", "minLength": 2, "maxLength": 80 },
+        "isListed": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "id", "name", "department", "category", "location", "description",
+        "specs", "imageUrl", "status", "requiresApproval", "utilizationRate",
+        "maxSlotHours", "custodianName", "isListed", "createdAt", "updatedAt"
+      ]
+    },
+    "Booking": {
+      "title": "Booking",
+      "description": "Time-slot reservation for a shared laboratory resource with project priority metadata.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "equipmentId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "equipmentName": { "type": "string", "minLength": 2, "maxLength": 120 },
+        "department": { "type": "string", "minLength": 2, "maxLength": 80 },
+        "requesterUid": { "type": "string", "maxLength": 128 },
+        "requesterName": { "type": "string", "minLength": 2, "maxLength": 80 },
+        "projectTitle": { "type": "string", "minLength": 2, "maxLength": 140 },
+        "purpose": { "type": "string", "minLength": 4, "maxLength": 500 },
+        "date": { "type": "string", "maxLength": 10, "pattern": "^\\d{4}-\\d{2}-\\d{2}$" },
+        "startHour": { "type": "integer" },
+        "endHour": { "type": "integer" },
+        "priorityLevel": { "type": "string", "enum": ["standard", "capstone", "thesis_deadline", "funded_grant"] },
+        "projectDeadline": { "type": "string", "maxLength": 10, "pattern": "^\\d{4}-\\d{2}-\\d{2}$" },
+        "status": { "type": "string", "enum": ["pending_approval", "confirmed", "conflict_flagged", "rescheduled", "rejected", "cancelled"] },
+        "aiRecommendationNote": { "type": "string", "maxLength": 500 },
+        "reviewedBy": { "type": "string", "maxLength": 80 },
+        "visibility": { "type": "string", "enum": ["campus"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "id", "equipmentId", "equipmentName", "department", "requesterUid",
+        "requesterName", "projectTitle", "purpose", "date", "startHour",
+        "endHour", "priorityLevel", "projectDeadline", "status", "visibility",
+        "createdAt", "updatedAt"
+      ]
+    },
+    "ProjectRequest": {
+      "title": "ProjectRequest",
+      "description": "Multi-resource project access request requiring faculty review and authorization.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "title": { "type": "string", "minLength": 3, "maxLength": 140 },
+        "department": { "type": "string", "minLength": 2, "maxLength": 80 },
+        "courseOrGrant": { "type": "string", "minLength": 2, "maxLength": 100 },
+        "abstract": { "type": "string", "minLength": 10, "maxLength": 800 },
+        "requestedEquipmentIds": { "type": "array" },
+        "requestedEquipmentNames": { "type": "array" },
+        "requestedHoursPerWeek": { "type": "integer" },
+        "deadline": { "type": "string", "maxLength": 10, "pattern": "^\\d{4}-\\d{2}-\\d{2}$" },
+        "requesterUid": { "type": "string", "maxLength": 128 },
+        "requesterName": { "type": "string", "minLength": 2, "maxLength": 80 },
+        "status": { "type": "string", "enum": ["pending_faculty", "approved", "changes_requested", "rejected"] },
+        "facultyDecisionNote": { "type": "string", "maxLength": 500 },
+        "reviewedByUid": { "type": "string", "maxLength": 128 },
+        "reviewedByName": { "type": "string", "maxLength": 80 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "id", "title", "department", "courseOrGrant", "abstract",
+        "requestedEquipmentIds", "requestedEquipmentNames", "requestedHoursPerWeek",
+        "deadline", "requesterUid", "requesterName", "status", "createdAt", "updatedAt"
+      ]
+    },
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Private user account record isolating campus email and verified role.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "maxLength": 128 },
+        "displayName": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "email": { "type": "string", "maxLength": 120 },
+        "department": { "type": "string", "minLength": 2, "maxLength": 80 },
+        "role": { "type": "string", "enum": ["student", "faculty"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "displayName", "email", "department", "role", "createdAt", "updatedAt"]
+    },
+    "AdminRecord": {
+      "title": "AdminRecord",
+      "description": "Trusted faculty/lab-admin authorization marker.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "maxLength": 128 },
+        "grantedBy": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "grantedBy", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/equipment/{equipmentId}": {
+      "schema": { "$ref": "#/entities/Equipment" },
+      "description": "Campus laboratory equipment catalog entries."
+    },
+    "/bookings/{bookingId}": {
+      "schema": { "$ref": "#/entities/Booking" },
+      "description": "Scheduled equipment slot reservations."
+    },
+    "/projectRequests/{requestId}": {
+      "schema": { "$ref": "#/entities/ProjectRequest" },
+      "description": "Project-based multi-equipment access requests."
+    },
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Private user profiles with PII isolation."
+    },
+    "/admins/{userId}": {
+      "schema": { "$ref": "#/entities/AdminRecord" },
+      "description": "Faculty/lab administrator allowlist."
+    }
+  }
+}
